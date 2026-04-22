@@ -385,15 +385,18 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
               </ContextMenuItem>
             </ContextMenuSubContent>
           </ContextMenuSub>
-          <ContextMenuSeparator />
-          <ContextMenuItem 
-            disabled={isLocked}
-            onClick={() => removeReport(report.id)} 
-            className="text-rose-600 focus:text-rose-600"
-          >
-            <X className="mr-2 h-4 w-4" />
-            <span>Delete Report</span>
-          </ContextMenuItem>
+          {!isLocked && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem 
+                onClick={() => removeReport(report.id)} 
+                className="text-rose-600 focus:text-rose-600"
+              >
+                <X className="mr-2 h-4 w-4" />
+                <span>Delete Report</span>
+              </ContextMenuItem>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
     </div>
@@ -544,7 +547,6 @@ export default function App() {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [selectedDomain, setSelectedDomain] = useState<string>('All');
   const [allowUploads, setAllowUploads] = useState<boolean>(true);
-  const [notificationRecipientEmail, setNotificationRecipientEmail] = useState<string>('');
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [conflictQueue, setConflictQueue] = useState<{
@@ -576,7 +578,6 @@ export default function App() {
         setBatchFolder(settings.batchFolder);
         setBatchLicenseDomain(settings.batchLicenseDomain);
         setAllowUploads(settings.allowUploads ?? true);
-        setNotificationRecipientEmail(settings.notificationRecipientEmail || '');
       }
 
       if (metadata.length > 0) {
@@ -614,10 +615,9 @@ export default function App() {
       batchVersion,
       batchFolder,
       batchLicenseDomain,
-      allowUploads,
-      notificationRecipientEmail
+      allowUploads
     });
-  }, [isLibraryLocked, expandedFolders, selectedEnv, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, notificationRecipientEmail, isInitialLoad]);
+  }, [isLibraryLocked, expandedFolders, selectedEnv, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isInitialLoad]);
 
   // Sync reports to storage service (for metadata updates)
   useEffect(() => {
@@ -669,7 +669,7 @@ export default function App() {
   );
 
   const handleFileUpload = useCallback((files: FileList | null, overrideEnv?: string, overrideFolder?: string, overrideDomain?: string) => {
-    if (!files || isLibraryLocked || !allowUploads) return;
+    if (!files || !allowUploads) return;
     
     Array.from(files).forEach(async (file) => {
       const fileName = file.name.toLowerCase();
@@ -761,7 +761,7 @@ export default function App() {
         setReports(prev => [...prev, newReport]);
       }
     });
-  }, [batchEnv, batchVersion, batchFolder, batchLicenseDomain, selectedEnv, selectedDomain, isLibraryLocked, reports]);
+  }, [batchEnv, batchVersion, batchFolder, batchLicenseDomain, selectedEnv, selectedDomain, reports, allowUploads]);
   
   const resolveConflict = async (replace: boolean) => {
     if (conflictQueue.length === 0) return;
@@ -840,30 +840,8 @@ export default function App() {
   };
 
   const updateReport = useCallback((id: string, updates: Partial<LivingDocReport>) => {
-    setReports(prev => {
-      const updated = prev.map(r => r.id === id ? { ...r, ...updates } : r);
-      
-      // Trigger notification if reviewStatus is changed to 'investigate'
-      if (updates.reviewStatus === 'investigate') {
-        const report = updated.find(r => r.id === id);
-        if (report && notificationRecipientEmail) {
-          fetch('/api/notify-investigation', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reportName: report.name,
-              environment: report.environment || 'Unknown',
-              version: report.version || 'Unknown',
-              recipientEmail: notificationRecipientEmail,
-              userEmail: 'mpantoja@jackhenry.com'
-            })
-          }).catch(err => console.error("Failed to send notification:", err));
-        }
-      }
-      
-      return updated;
-    });
-  }, [notificationRecipientEmail]);
+    setReports(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  }, []);
 
   const removeReport = (id: string) => {
     setReports(prev => {
@@ -979,29 +957,15 @@ export default function App() {
                       <Settings size={18} />
                     </Button>
                   } />
-                <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
-                  <DialogHeader className="px-6 pt-6">
+                <DialogContent className="max-w-md max-h-[85vh] p-0 flex flex-col overflow-hidden bg-white dark:bg-neutral-950">
+                  <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b border-neutral-100 dark:border-neutral-800">
                     <DialogTitle>App Settings</DialogTitle>
                     <DialogDescription>
                       Configure your environment viewing and upload preferences.
                     </DialogDescription>
                   </DialogHeader>
-                  <ScrollArea className="flex-1 min-h-0 px-6 pb-6 pr-6">
-                    <div className="grid gap-6 py-4">
-                      <div className="grid gap-2">
-                         <Label htmlFor="notificationEmail" className="text-xs font-bold uppercase tracking-wider text-neutral-500">Investigation Contact (Email)</Label>
-                         <Input 
-                           id="notificationEmail" 
-                           type="email"
-                           placeholder="e.g. team-leads@jackhenry.com" 
-                           value={notificationRecipientEmail} 
-                           onChange={(e) => setNotificationRecipientEmail(e.target.value)} 
-                           className="bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 focus:ring-indigo-500"
-                         />
-                         <p className="text-[10px] text-neutral-400 -mt-1 italic leading-tight">
-                           Who should be notified when a report is flagged for investigation?
-                         </p>
-                      </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 custom-scrollbar">
+                    <div className="grid gap-6">
                       <div className="grid gap-2">
                          <Label htmlFor="batchEnv" className="text-xs font-bold uppercase tracking-wider text-neutral-500">Default Environment</Label>
                          <Select value={batchEnv} onValueChange={setBatchEnv}>
@@ -1076,7 +1040,7 @@ export default function App() {
                          />
                       </div>
                     </div>
-                  </ScrollArea>
+                  </div>
                 </DialogContent>
               </Dialog>
             </div>

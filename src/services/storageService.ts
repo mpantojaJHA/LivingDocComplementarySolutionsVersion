@@ -28,7 +28,6 @@ export interface AppSettings {
   batchFolder: string;
   batchLicenseDomain: string;
   allowUploads: boolean;
-  notificationRecipientEmail: string;
 }
 
 export const storageService = {
