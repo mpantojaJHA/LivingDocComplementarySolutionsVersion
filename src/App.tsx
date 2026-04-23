@@ -1324,7 +1324,7 @@ export default function App() {
                              <div>
                                 <h3 className="font-bold text-neutral-900 dark:text-neutral-100 mb-1">Uploading Files</h3>
                                 <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                                   Drag and drop <span className="font-bold text-indigo-600">LivingDoc</span> files anywhere on the workspace. You can also click the primary "Choose Files" button when the workspace is empty to browse your local files.
+                                   Drag and drop <span className="font-bold text-indigo-600">LivingDoc</span> files anywhere on the workspace. <span className="font-bold italic text-indigo-600">Important:</span> Only files starting with the name <span className="font-bold text-neutral-900 dark:text-white underline">"LivingDoc"</span> are currently accepted for processing.
                                 </p>
                              </div>
                           </section>
