@@ -20,8 +20,8 @@ export interface ReportMetadata {
 
 export interface AppSettings {
   isLibraryLocked: boolean;
-  expandedFolders: Record<string, boolean>;
   selectedEnv: string;
+  regressionReleaseName?: string;
   selectedDomain: string;
   batchEnv: string;
   batchVersion: string;

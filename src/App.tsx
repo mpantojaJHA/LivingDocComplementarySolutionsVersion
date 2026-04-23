@@ -41,7 +41,8 @@ import {
   Rocket,
   FlaskConical,
   RotateCcw,
-  ListRestart
+  ListRestart,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -185,7 +186,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
                   : report.reviewStatus === 'good'
                   ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900 shadow-sm hover:shadow-md hover:bg-emerald-100/50 dark:hover:bg-emerald-900/30"
                   : report.reviewStatus === 'flaky'
-                  ? "bg-amber-100 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 border-amber-400 dark:border-amber-800 shadow-sm hover:shadow-md hover:bg-amber-200/50 dark:hover:bg-amber-900/50"
+                  ? "bg-yellow-50 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-900/50 shadow-sm hover:shadow-md hover:bg-yellow-100/50 dark:hover:bg-yellow-900/30"
                   : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-transparent shadow-sm hover:shadow-md bg-white dark:bg-neutral-900 hover:border-neutral-200 dark:hover:border-neutral-800"
               )}
             >
@@ -233,7 +234,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
                    {report.reviewStatus === 'flaky' && (
                      <Zap 
                        size={12} 
-                       className={cn("shrink-0", activeReportIds.includes(report.id) ? "text-amber-200" : "text-amber-500")} 
+                       className={cn("shrink-0", activeReportIds.includes(report.id) ? "text-yellow-200" : "text-yellow-400")} 
                      />
                    )}
                    {report.status !== 'unknown' && !activeReportIds.includes(report.id) && (
@@ -253,17 +254,17 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
                    >
                      {report.environment}
                    </Badge>
-                   {report.licenseDomain && (
-                     <Badge 
-                       variant="outline" 
-                       className={cn(
-                         "text-[8px] h-3.5 px-1 py-0 leading-none font-bold uppercase",
-                         activeReportIds.includes(report.id) ? "border-amber-400 bg-amber-400 text-white" : "border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400"
-                       )}
-                     >
-                       {report.licenseDomain}
-                     </Badge>
-                   )}
+                  {report.licenseDomain && (
+                    <Badge 
+                      variant="outline" 
+                      className={cn(
+                        "text-[8px] h-3.5 px-1 py-0 leading-none font-bold uppercase",
+                        activeReportIds.includes(report.id) ? "border-yellow-400 bg-yellow-400 text-white" : "border-yellow-200 dark:border-yellow-900/50 bg-yellow-50 dark:bg-yellow-950/50 text-yellow-600 dark:text-yellow-400"
+                      )}
+                    >
+                      {report.licenseDomain}
+                    </Badge>
+                  )}
                    {report.version && (
                      <Badge 
                        variant="outline" 
@@ -373,7 +374,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
               </ContextMenuItem>
               <ContextMenuItem 
                 onClick={() => onUpdate(report.id, { reviewStatus: 'flaky' })}
-                className="text-amber-600 focus:text-amber-600 font-medium"
+                className="text-yellow-600 focus:text-yellow-600 font-medium"
               >
                 <Zap className="mr-2 h-4 w-4" />
                 <span>Flaky failure - OK</span>
@@ -479,7 +480,7 @@ function DroppableDomainTab({ domain, active, onSelect, onDropFiles }: {
   );
 }
 
-function EnvironmentStatusGraphic({ env, domain }: { env: string, domain: string }) {
+function EnvironmentStatusGraphic({ env, domain, releaseName, versionName }: { env: string, domain: string, releaseName?: string, versionName?: string }) {
   const envInfo = {
     'DevNightly': { icon: <Moon size={64} />, color: 'text-indigo-600', border: 'border-indigo-100', bg: 'bg-indigo-50', bgDark: 'dark:bg-indigo-900/10', label: 'Development Nightly' },
     'Regression': { icon: <FlaskConical size={64} />, color: 'text-emerald-600', border: 'border-emerald-100', bg: 'bg-emerald-50', bgDark: 'dark:bg-emerald-900/10', label: 'Regression Suite' },
@@ -514,6 +515,16 @@ function EnvironmentStatusGraphic({ env, domain }: { env: string, domain: string
         <h2 className="text-6xl font-black text-neutral-900 dark:text-neutral-100 mb-6 tracking-tighter relative z-10 leading-tight">
           Viewing <br/>
           <span className={cn("italic serif", info.color)}>{info.label}</span>
+          {env === 'Regression' && releaseName && (
+            <div className="text-2xl mt-4 text-neutral-500 font-normal tracking-normal normal-case">
+              Release: <span className="font-bold text-neutral-900 dark:text-neutral-100">{releaseName}</span>
+            </div>
+          )}
+          {env === 'DevNightly' && versionName && (
+            <div className="text-2xl mt-4 text-neutral-500 font-normal tracking-normal normal-case">
+              Sprint: <span className="font-bold text-neutral-900 dark:text-neutral-100">{versionName}</span>
+            </div>
+          )}
         </h2>
         
         <p className="text-xl text-neutral-500 dark:text-neutral-400 mb-12 max-w-lg mx-auto font-medium leading-relaxed relative z-10">
@@ -543,12 +554,14 @@ export default function App() {
   const [batchVersion, setBatchVersion] = useState<string>('');
   const [batchFolder, setBatchFolder] = useState<string>('');
   const [batchLicenseDomain, setBatchLicenseDomain] = useState<string>('');
+  const [regressionReleaseName, setRegressionReleaseName] = useState<string>('');
   const [isLibraryLocked, setIsLibraryLocked] = useState<boolean>(false);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [selectedDomain, setSelectedDomain] = useState<string>('All');
   const [allowUploads, setAllowUploads] = useState<boolean>(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [reportToDelete, setReportToDelete] = useState<LivingDocReport | null>(null);
   const [conflictQueue, setConflictQueue] = useState<{
     file: File;
     existingId: string;
@@ -570,8 +583,8 @@ export default function App() {
 
       if (settings) {
         setIsLibraryLocked(settings.isLibraryLocked);
-        setExpandedFolders(settings.expandedFolders);
         setSelectedEnv(settings.selectedEnv);
+        setRegressionReleaseName(settings.regressionReleaseName || '');
         setSelectedDomain(settings.selectedDomain);
         setBatchEnv(settings.batchEnv);
         setBatchVersion(settings.batchVersion);
@@ -608,8 +621,8 @@ export default function App() {
     
     storageService.saveSettings({
       isLibraryLocked,
-      expandedFolders,
       selectedEnv,
+      regressionReleaseName,
       selectedDomain,
       batchEnv,
       batchVersion,
@@ -617,7 +630,7 @@ export default function App() {
       batchLicenseDomain,
       allowUploads
     });
-  }, [isLibraryLocked, expandedFolders, selectedEnv, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isInitialLoad]);
+  }, [isLibraryLocked, expandedFolders, selectedEnv, regressionReleaseName, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isInitialLoad]);
 
   // Sync reports to storage service (for metadata updates)
   useEffect(() => {
@@ -854,6 +867,13 @@ export default function App() {
     storageService.deleteReport(id);
   };
 
+  const confirmDeleteReport = (id: string) => {
+    const report = reports.find(r => r.id === id);
+    if (report) {
+      setReportToDelete(report);
+    }
+  };
+
   const filteredReports = reports.filter(r => {
     const matchesSearch = 
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -943,7 +963,7 @@ export default function App() {
                 <div className="flex flex-col text-left">
                   <div className="flex items-center gap-1.5 translate-y-0.5">
                     <h1 className="font-bold text-sm tracking-tight text-neutral-900 dark:text-neutral-100 leading-none">Complementary Solutions</h1>
-                    {isLibraryLocked && <Lock size={11} className="text-amber-500 shrink-0" />}
+                    {isLibraryLocked && <Lock size={11} className="text-yellow-500 shrink-0" />}
                   </div>
                   <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider mt-0.5">Financial Performance Suite</p>
                   <p className="text-[9px] text-indigo-600 font-black uppercase tracking-[0.2em] mt-1">LivingDoc Explorer</p>
@@ -987,6 +1007,17 @@ export default function App() {
                            onChange={(e) => setBatchVersion(e.target.value)} 
                            className="bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 focus:ring-indigo-500"
                          />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label htmlFor="regressionRelease" className="text-xs font-bold uppercase tracking-wider text-neutral-500">Regression Release Name</Label>
+                         <Input 
+                           id="regressionRelease" 
+                           placeholder="e.g. April 2024 Release" 
+                           value={regressionReleaseName} 
+                           onChange={(e) => setRegressionReleaseName(e.target.value)} 
+                           className="bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 focus:ring-indigo-500"
+                         />
+                         <p className="text-[10px] text-neutral-400 italic">This label will be displayed when viewing the Regression tab.</p>
                       </div>
                       <div className="grid gap-2">
                          <Label htmlFor="batchFolder" className="text-xs font-bold uppercase tracking-wider text-neutral-500">Target Folder (Optional)</Label>
@@ -1119,7 +1150,19 @@ export default function App() {
 
           {folders.length > 0 && filteredReports.length > 0 && (
             <div className="px-4 py-2 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/20">
-              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest leading-none">Reports ({folders.length} {folders.length === 1 ? 'Folder' : 'Folders'})</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest leading-none">Reports ({folders.length} {folders.length === 1 ? 'Folder' : 'Folders'})</span>
+                {selectedEnv === 'Regression' && regressionReleaseName && (
+                  <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tight truncate max-w-[180px]">
+                    Release: {regressionReleaseName}
+                  </span>
+                )}
+                {selectedEnv === 'DevNightly' && batchVersion && (
+                  <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tight truncate max-w-[180px]">
+                    Sprint: {batchVersion}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-1">
                 <Tooltip>
                   <TooltipTrigger render={
@@ -1161,7 +1204,7 @@ export default function App() {
                 ) : (
                   folders.map((folderName: string) => {
                     const folderReports = filteredReports.filter(r => (r.folder || 'Uncategorized') === folderName);
-                    const isExpanded = expandedFolders[folderName] !== false; // Default to expanded
+                    const isExpanded = !!expandedFolders[folderName]; // Default to collapsed
 
                     return (
                       <div key={folderName} className="space-y-1">
@@ -1193,7 +1236,7 @@ export default function App() {
                                       report={report} 
                                       activeReportIds={activeReportIds}
                                       toggleReportActive={toggleReportActive}
-                                      removeReport={removeReport}
+                                      removeReport={confirmDeleteReport}
                                       onUpdate={updateReport}
                                       searchQuery={searchQuery}
                                       isLocked={isLibraryLocked}
@@ -1262,15 +1305,15 @@ export default function App() {
                 
                 <Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>
                   <DialogTrigger render={
-                    <button className="ml-1 p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-indigo-600 transition-colors">
+                    <button className="ml-1 p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-indigo-600 transition-colors cursor-pointer border-none outline-none bg-transparent">
                       <HelpCircle size={16} />
                     </button>
                   } />
                   <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
-                    <div className="p-8 bg-indigo-600 text-white shrink-0">
-                      <h2 className="text-3xl font-black italic serif mb-2">How can we help?</h2>
-                      <p className="text-indigo-100 opacity-80">Quick guide to mastering your LivingDoc Explorer</p>
-                    </div>
+                    <DialogHeader className="p-8 bg-indigo-600 text-white shrink-0 space-y-2">
+                      <DialogTitle className="text-3xl font-black italic serif">How can we help?</DialogTitle>
+                      <DialogDescription className="text-indigo-100 opacity-80 border-none p-0">Quick guide to mastering your LivingDoc Explorer</DialogDescription>
+                    </DialogHeader>
                     
                     <div className="flex-1 min-h-0 overflow-y-auto border-y border-neutral-100 dark:border-neutral-800">
                        <div className="p-8 grid gap-8">
@@ -1305,7 +1348,7 @@ export default function App() {
                              <div>
                                 <h3 className="font-bold text-neutral-900 dark:text-neutral-100 mb-1">Managing Status</h3>
                                 <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                                   Status (Passed/Failed) is auto-detected. <span className="font-bold">Right-click</span> any report to manually flag it for <span className="text-rose-500 font-bold">Investigation</span> or mark it as <span className="text-emerald-500 font-bold">Good</span> to help with review workflows.
+                                   Status (Passed/Failed) is auto-detected. <span className="font-bold">Right-click</span> any report to manually flag it for <span className="text-rose-500 font-bold">Investigation</span>, mark it as <span className="text-emerald-500 font-bold">Good</span>, or tag it as a <span className="text-yellow-600 font-bold">Flaky Failure</span> (Yellow) to help with review workflows.
                                 </p>
                              </div>
                           </section>
@@ -1317,7 +1360,19 @@ export default function App() {
                              <div>
                                 <h3 className="font-bold text-neutral-900 dark:text-neutral-100 mb-1">Correction: Environments & Folders</h3>
                                 <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                                   Mistakes happen! <span className="font-bold">Right-click</span> a report select "Change Environment" or "License Domain" to update its metadata. You can also drop files directly onto specific <span className="font-bold text-indigo-600">Environment Tabs</span> at the top of the sidebar to auto-tag them during upload.
+                                   Mistakes happen! <span className="font-bold">Right-click</span> a report and select "Change Environment" or "License Domain" to update its metadata. You can also drop files directly onto specific <span className="font-bold text-indigo-600">Environment Tabs</span> at the top of the sidebar to auto-tag them during upload.
+                                </p>
+                             </div>
+                          </section>
+
+                          <section className="flex gap-4">
+                             <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                                <Trash2 size={20} />
+                             </div>
+                             <div>
+                                <h3 className="font-bold text-neutral-900 dark:text-neutral-100 mb-1">Deleting & Safety</h3>
+                                <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                                   To delete a report, use the <span className="font-bold text-rose-500">X</span> button or context menu. A confirmation dialog will ensure you don't lose data accidentally. Note: Folder trees start <span className="italic font-bold">collapsed</span> on fresh starts to keep your library tidy.
                                 </p>
                              </div>
                           </section>
@@ -1405,7 +1460,12 @@ export default function App() {
                      </div>
                   </div>
                 ) : (
-                  <EnvironmentStatusGraphic env={selectedEnv} domain={selectedDomain} />
+                  <EnvironmentStatusGraphic 
+                    env={selectedEnv} 
+                    domain={selectedDomain} 
+                    releaseName={selectedEnv === 'Regression' ? regressionReleaseName : undefined}
+                    versionName={selectedEnv === 'DevNightly' ? batchVersion : undefined}
+                  />
                 )
               ) : (
                 <div className={cn(
@@ -1457,9 +1517,9 @@ export default function App() {
                               <Tooltip>
                                 <TooltipTrigger render={
                                   <button 
-                                    onClick={() => setMaximizedReportId(isMaximized ? null : id)}
+                                    onClick={(e) => { e.stopPropagation(); setMaximizedReportId(isMaximized ? null : id); }}
                                     className={cn(
-                                      "p-1.5 rounded-lg transition-colors",
+                                      "p-1.5 rounded-lg transition-colors cursor-pointer border-none outline-none bg-transparent",
                                       isMaximized ? "bg-white/20 hover:bg-white/30 text-white" : "hover:bg-white bg-white/0 text-neutral-500 hover:text-indigo-600"
                                     )}
                                   >
@@ -1471,9 +1531,9 @@ export default function App() {
                               <Tooltip>
                                 <TooltipTrigger render={
                                   <button 
-                                    onClick={() => toggleReportActive(id)}
+                                    onClick={(e) => { e.stopPropagation(); toggleReportActive(id); }}
                                     className={cn(
-                                      "p-1.5 rounded-lg transition-colors",
+                                      "p-1.5 rounded-lg transition-colors cursor-pointer border-none outline-none bg-transparent",
                                       isMaximized ? "bg-white/20 hover:bg-white/30 text-white" : "hover:bg-white bg-white/0 text-neutral-500 hover:text-red-500"
                                     )}
                                   >
@@ -1532,7 +1592,7 @@ export default function App() {
         <Dialog open={conflictQueue.length > 0} onOpenChange={(open) => !open && resolveConflict(false)}>
            <DialogContent className="max-w-md">
               <DialogHeader>
-                 <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center text-amber-600 dark:text-amber-400 mb-4">
+                 <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center text-yellow-600 dark:text-yellow-400 mb-4">
                     <AlertTriangle size={24} />
                  </div>
                  <DialogTitle className="text-xl font-bold">Replace existing file?</DialogTitle>
@@ -1556,6 +1616,40 @@ export default function App() {
                    className="flex-1 bg-indigo-600 hover:bg-indigo-700"
                  >
                     Yes, Replace
+                 </Button>
+              </DialogFooter>
+           </DialogContent>
+        </Dialog>
+
+        {/* Delete Report Confirmation Dialog */}
+        <Dialog open={!!reportToDelete} onOpenChange={(open) => !open && setReportToDelete(null)}>
+           <DialogContent className="max-w-md">
+              <DialogHeader>
+                 <div className="w-12 h-12 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center text-rose-600 dark:text-rose-400 mb-4">
+                    <Trash2 size={24} />
+                 </div>
+                 <DialogTitle className="text-xl font-bold">Delete Report?</DialogTitle>
+                 <DialogDescription className="text-neutral-600 dark:text-neutral-400">
+                    Are you sure you want to delete the <span className="font-bold text-neutral-900 dark:text-neutral-100 italic">"{reportToDelete?.name}"</span> report? This action cannot be undone.
+                 </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2 sm:gap-0 mt-6">
+                 <Button 
+                   variant="outline" 
+                   onClick={() => setReportToDelete(null)}
+                   className="flex-1"
+                 >
+                    Cancel
+                 </Button>
+                 <Button 
+                   variant="destructive" 
+                   onClick={() => {
+                     if (reportToDelete) removeReport(reportToDelete.id);
+                     setReportToDelete(null);
+                   }}
+                   className="flex-1"
+                 >
+                    Delete
                  </Button>
               </DialogFooter>
            </DialogContent>
