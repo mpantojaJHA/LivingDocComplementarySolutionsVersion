@@ -18,6 +18,15 @@ export interface ReportMetadata {
   reviewStatus?: 'investigate' | 'good' | 'flaky' | 'none';
 }
 
+export type UserRole = 'Administrator' | 'Viewer';
+
+export interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  displayName: string;
+}
+
 export interface AppSettings {
   isLibraryLocked: boolean;
   selectedEnv: string;
@@ -29,6 +38,7 @@ export interface AppSettings {
   batchLicenseDomain: string;
   allowUploads: boolean;
   isAutoSortEnabled?: boolean;
+  currentUser?: User;
 }
 
 export const storageService = {
