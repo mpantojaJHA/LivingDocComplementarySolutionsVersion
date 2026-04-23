@@ -42,7 +42,8 @@ import {
   FlaskConical,
   RotateCcw,
   ListRestart,
-  Trash2
+  Trash2,
+  ArrowDownAZ
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -178,7 +179,8 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
               onClick={() => toggleReportActive(report.id)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleReportActive(report.id); }}
               className={cn(
-                "w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all group relative border cursor-pointer select-none pr-10",
+                "w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all group relative border cursor-pointer select-none",
+                !isLocked && "pr-10",
                 activeReportIds.includes(report.id) 
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-indigo-950/50 border-indigo-500" 
                   : report.reviewStatus === 'investigate'
@@ -190,13 +192,15 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
                   : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-transparent shadow-sm hover:shadow-md bg-white dark:bg-neutral-900 hover:border-neutral-200 dark:hover:border-neutral-800"
               )}
             >
-              <div 
-                {...attributes} 
-                {...listeners}
-                className="absolute left-1 top-1/2 -translate-y-1/2 p-1 text-neutral-300 hover:text-neutral-500 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <GripVertical size={14} />
-              </div>
+              {!isLocked && (
+                <div 
+                  {...attributes} 
+                  {...listeners}
+                  className="absolute left-1 top-1/2 -translate-y-1/2 p-1 text-neutral-300 hover:text-neutral-500 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <GripVertical size={14} />
+                </div>
+              )}
 
               <div className={cn(
                 "mt-1 p-1.5 rounded-lg shrink-0 ml-2",
@@ -556,6 +560,7 @@ export default function App() {
   const [batchLicenseDomain, setBatchLicenseDomain] = useState<string>('');
   const [regressionReleaseName, setRegressionReleaseName] = useState<string>('');
   const [isLibraryLocked, setIsLibraryLocked] = useState<boolean>(false);
+  const [isAutoSortEnabled, setIsAutoSortEnabled] = useState<boolean>(false);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [selectedDomain, setSelectedDomain] = useState<string>('All');
   const [allowUploads, setAllowUploads] = useState<boolean>(true);
@@ -591,6 +596,7 @@ export default function App() {
         setBatchFolder(settings.batchFolder);
         setBatchLicenseDomain(settings.batchLicenseDomain);
         setAllowUploads(settings.allowUploads ?? true);
+        setIsAutoSortEnabled(settings.isAutoSortEnabled ?? false);
       }
 
       if (metadata.length > 0) {
@@ -628,9 +634,10 @@ export default function App() {
       batchVersion,
       batchFolder,
       batchLicenseDomain,
-      allowUploads
+      allowUploads,
+      isAutoSortEnabled
     });
-  }, [isLibraryLocked, expandedFolders, selectedEnv, regressionReleaseName, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isInitialLoad]);
+  }, [isLibraryLocked, expandedFolders, selectedEnv, regressionReleaseName, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isInitialLoad, isAutoSortEnabled]);
 
   // Sync reports to storage service (for metadata updates)
   useEffect(() => {
@@ -1166,6 +1173,27 @@ export default function App() {
               <div className="flex items-center gap-1">
                 <Tooltip>
                   <TooltipTrigger render={
+                    <Button 
+                      variant="ghost" 
+                      size="icon-sm" 
+                      className={cn(
+                        "h-5 w-5 transition-all", 
+                        isAutoSortEnabled 
+                          ? "text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-200 dark:ring-indigo-800" 
+                          : "text-neutral-400 hover:text-indigo-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      )}
+                      onClick={() => setIsAutoSortEnabled(!isAutoSortEnabled)}
+                    >
+                      <ArrowDownAZ size={12} />
+                    </Button>
+                  } />
+                  <TooltipContent side="top">
+                    {isAutoSortEnabled ? "Disable Auto-Sort" : "Auto-Sort Alphabetically"}
+                  </TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger render={
                     <Button variant="ghost" size="icon-sm" className="h-5 w-5 text-neutral-400 hover:text-indigo-600" onClick={expandAll}>
                       <ChevronsUpDown size={12} />
                     </Button>
@@ -1203,7 +1231,12 @@ export default function App() {
                   </div>
                 ) : (
                   folders.map((folderName: string) => {
-                    const folderReports = filteredReports.filter(r => (r.folder || 'Uncategorized') === folderName);
+                    let folderReports = filteredReports.filter(r => (r.folder || 'Uncategorized') === folderName);
+                    
+                    if (isAutoSortEnabled) {
+                      folderReports = [...folderReports].sort((a, b) => a.name.localeCompare(b.name));
+                    }
+                    
                     const isExpanded = !!expandedFolders[folderName]; // Default to collapsed
 
                     return (
@@ -1239,7 +1272,7 @@ export default function App() {
                                       removeReport={confirmDeleteReport}
                                       onUpdate={updateReport}
                                       searchQuery={searchQuery}
-                                      isLocked={isLibraryLocked}
+                                      isLocked={isLibraryLocked || isAutoSortEnabled}
                                     />
                                   ))}
                                 </SortableContext>

@@ -28,6 +28,7 @@ export interface AppSettings {
   batchFolder: string;
   batchLicenseDomain: string;
   allowUploads: boolean;
+  isAutoSortEnabled?: boolean;
 }
 
 export const storageService = {
