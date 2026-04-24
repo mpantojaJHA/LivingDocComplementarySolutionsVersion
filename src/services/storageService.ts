@@ -28,7 +28,6 @@ export interface User {
 }
 
 export interface AppSettings {
-  isLibraryLocked: boolean;
   selectedEnv: string;
   regressionReleaseName?: string;
   selectedDomain: string;

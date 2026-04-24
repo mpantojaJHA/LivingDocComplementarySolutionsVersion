@@ -46,7 +46,8 @@ import {
   Users,
   Shield,
   Key,
-  LogOut
+  LogOut,
+  BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -118,6 +119,8 @@ import { LivingDocReport } from '@/src/types';
 
 import { storageService, ReportMetadata, AppSettings, User, UserRole } from '@/src/services/storageService';
 
+import { DashboardView } from '@/src/components/DashboardView';
+
 const DOMAIN_ICONS: Record<string, string> = {
   "Allocations": "💰",
   "ALM": "🏦",
@@ -154,12 +157,13 @@ interface SortableReportItemProps {
   toggleReportActive: (id: string) => void;
   removeReport: (id: string) => void;
   searchQuery: string;
-  isLocked?: boolean;
+  isAutoSortEnabled?: boolean;
+  isAdmin: boolean;
   onUpdate: (id: string, updates: Partial<LivingDocReport>) => void;
   key?: React.Key;
 }
 
-function SortableReportItem({ report, activeReportIds, toggleReportActive, removeReport, searchQuery, isLocked, onUpdate }: SortableReportItemProps) {
+function SortableReportItem({ report, activeReportIds, toggleReportActive, removeReport, searchQuery, isAutoSortEnabled, isAdmin, onUpdate }: SortableReportItemProps) {
   const {
     attributes,
     listeners,
@@ -167,7 +171,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: report.id });
+  } = useSortable({ id: report.id, disabled: isAutoSortEnabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -192,7 +196,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggleReportActive(report.id); }}
               className={cn(
                 "w-full flex items-start gap-3 p-3 rounded-xl text-left transition-all group relative border cursor-pointer select-none",
-                !isLocked && "pr-10",
+                "pr-10",
                 activeReportIds.includes(report.id) 
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-100 dark:shadow-indigo-950/50 border-indigo-500" 
                   : report.reviewStatus === 'investigate'
@@ -204,7 +208,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
                   : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border-transparent shadow-sm hover:shadow-md bg-white dark:bg-neutral-900 hover:border-neutral-200 dark:hover:border-neutral-800"
               )}
             >
-              {!isLocked && (
+              {!isAutoSortEnabled && (
                 <div 
                   {...attributes} 
                   {...listeners}
@@ -308,7 +312,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
                   </p>
                 )}
               </div>
-              {!isLocked && (
+              {isAdmin && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); removeReport(report.id); }}
                   className={cn(
@@ -329,7 +333,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuSub>
-            <ContextMenuSubTrigger>
+            <ContextMenuSubTrigger disabled={!isAdmin}>
               <Globe className="mr-2 h-4 w-4" />
               <span>Change Environment</span>
             </ContextMenuSubTrigger>
@@ -348,7 +352,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
             </ContextMenuSubContent>
           </ContextMenuSub>
           <ContextMenuSub>
-            <ContextMenuSubTrigger>
+            <ContextMenuSubTrigger disabled={!isAdmin}>
               <Briefcase className="mr-2 h-4 w-4" />
               <span>License Domain</span>
             </ContextMenuSubTrigger>
@@ -402,7 +406,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
               </ContextMenuItem>
             </ContextMenuSubContent>
           </ContextMenuSub>
-          {!isLocked && (
+          {isAdmin && (
             <>
               <ContextMenuSeparator />
               <ContextMenuItem 
@@ -571,20 +575,18 @@ export default function App() {
   const [batchFolder, setBatchFolder] = useState<string>('');
   const [batchLicenseDomain, setBatchLicenseDomain] = useState<string>('');
   const [regressionReleaseName, setRegressionReleaseName] = useState<string>('');
-  const [isLibraryLocked, setIsLibraryLocked] = useState<boolean>(false);
   const [isAutoSortEnabled, setIsAutoSortEnabled] = useState<boolean>(false);
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [selectedDomain, setSelectedDomain] = useState<string>('All');
   const [allowUploads, setAllowUploads] = useState<boolean>(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState<LivingDocReport | null>(null);
-  const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
   
   const isAdmin = currentUser?.role === 'Administrator';
-
+  
   const [conflictQueue, setConflictQueue] = useState<{
     file: File;
     existingId: string;
@@ -605,7 +607,6 @@ export default function App() {
       const settings = storageService.getSettings();
 
       if (settings) {
-        setIsLibraryLocked(settings.isLibraryLocked);
         setSelectedEnv(settings.selectedEnv);
         setRegressionReleaseName(settings.regressionReleaseName || '');
         setSelectedDomain(settings.selectedDomain);
@@ -615,35 +616,28 @@ export default function App() {
         setBatchLicenseDomain(settings.batchLicenseDomain);
         setAllowUploads(settings.allowUploads ?? true);
         setIsAutoSortEnabled(settings.isAutoSortEnabled ?? false);
-        setCurrentUser(settings.currentUser || {
-          id: '1',
-          email: 'admin@livingdoc.com',
-          role: 'Administrator',
-          displayName: 'Admin User'
-        });
+        
+        // Auto-resolve user from SSO / Settings
+        if (settings.currentUser) {
+          setCurrentUser(settings.currentUser);
+        } else {
+          // Default to current practitioner from SSO metadata
+          setCurrentUser({
+            id: 'sso-user-main',
+            email: 'mpantoja@jackhenry.com',
+            role: 'Administrator',
+            displayName: 'M. Pantoja'
+          });
+        }
       } else {
-        // Default admin for first run
+        // First run default
         setCurrentUser({
-          id: '1',
-          email: 'admin@livingdoc.com',
+          id: 'sso-user-main',
+          email: 'mpantoja@jackhenry.com',
           role: 'Administrator',
-          displayName: 'Admin User'
+          displayName: 'M. Pantoja'
         });
       }
-
-      // Load simulated user list (normally from SSO/DB)
-      const storedUsers = localStorage.getItem('livingdoc_users');
-      if (storedUsers) {
-        setAllUsers(JSON.parse(storedUsers));
-      } else {
-        const initialUsers: User[] = [
-          { id: '1', email: 'admin@livingdoc.com', role: 'Administrator', displayName: 'Admin User' },
-          { id: '2', email: 'viewer@livingdoc.com', role: 'Viewer', displayName: 'Viewer User' }
-        ];
-        setAllUsers(initialUsers);
-        localStorage.setItem('livingdoc_users', JSON.stringify(initialUsers));
-      }
-
       if (metadata.length > 0) {
         const loadedReports: LivingDocReport[] = [];
         for (const r of metadata) {
@@ -671,7 +665,6 @@ export default function App() {
     if (isInitialLoad) return;
     
     storageService.saveSettings({
-      isLibraryLocked,
       selectedEnv,
       regressionReleaseName,
       selectedDomain,
@@ -683,7 +676,7 @@ export default function App() {
       isAutoSortEnabled,
       currentUser: currentUser || undefined
     });
-  }, [isLibraryLocked, expandedFolders, selectedEnv, regressionReleaseName, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isInitialLoad, isAutoSortEnabled, currentUser]);
+  }, [expandedFolders, selectedEnv, regressionReleaseName, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isInitialLoad, isAutoSortEnabled, currentUser]);
 
   // Sync reports to storage service (for metadata updates)
   useEffect(() => {
@@ -834,6 +827,10 @@ export default function App() {
     
     const { file, existingId, uploadParams } = conflictQueue[0];
     
+    // Find existing report to potentially preserve its folder
+    const existingReport = reports.find(r => r.id === existingId);
+    const preservedFolder = existingReport?.folder;
+    
     if (replace) {
       removeReport(existingId);
       
@@ -850,7 +847,7 @@ export default function App() {
         textContent: uploadParams.textContent,
         environment: uploadParams.uploadEnv,
         version: uploadParams.version,
-        folder: uploadParams.uploadFolder,
+        folder: preservedFolder || uploadParams.uploadFolder,
         licenseDomain: uploadParams.uploadDomain
       }, arrayBuffer);
 
@@ -864,7 +861,7 @@ export default function App() {
         textContent: uploadParams.textContent,
         environment: uploadParams.uploadEnv,
         version: uploadParams.version,
-        folder: uploadParams.uploadFolder,
+        folder: preservedFolder || uploadParams.uploadFolder,
         licenseDomain: uploadParams.uploadDomain
       };
 
@@ -898,6 +895,7 @@ export default function App() {
   }, [handleFileUpload]);
 
   const toggleReportActive = (id: string) => {
+    setIsDashboardOpen(false);
     setActiveReportIds(prev => 
       prev.includes(id) 
         ? prev.filter(rid => rid !== id) 
@@ -1017,7 +1015,6 @@ export default function App() {
                 <div className="flex flex-col text-left">
                   <div className="flex items-center gap-1.5 translate-y-0.5">
                     <h1 className="font-bold text-sm tracking-tight text-neutral-900 dark:text-neutral-100 leading-none">Complementary Solutions</h1>
-                    {isLibraryLocked && <Lock size={11} className="text-yellow-500 shrink-0" />}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-semibold uppercase tracking-wider leading-none">FPS Suite</p>
@@ -1034,23 +1031,12 @@ export default function App() {
               </div>
               
               <div className="flex items-center gap-1">
-                {isAdmin && (
-                  <button 
-                    onClick={() => setIsPermissionsOpen(true)}
-                    className="p-1 rounded-md text-neutral-400 hover:text-indigo-600 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                    title="Manage Permissions"
-                  >
-                    <Key size={14} />
-                  </button>
-                )}
-                
-                {isAdmin && (
-                  <Dialog>
-                    <DialogTrigger render={
-                      <Button variant="ghost" size="icon-sm" className="text-neutral-400 hover:text-indigo-600">
-                        <Settings size={18} />
-                      </Button>
-                    } />
+                <Dialog>
+                  <DialogTrigger render={
+                    <Button variant="ghost" size="icon-sm" className="text-neutral-400 hover:text-indigo-600">
+                      <Settings size={18} />
+                    </Button>
+                  } />
                 <DialogContent className="max-w-md max-h-[85vh] p-0 flex flex-col overflow-hidden bg-white dark:bg-neutral-950">
                   <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b border-neutral-100 dark:border-neutral-800">
                     <DialogTitle>App Settings</DialogTitle>
@@ -1117,19 +1103,6 @@ export default function App() {
                             </SelectContent>
                          </Select>
                       </div>
-                      <div className="flex items-center justify-between p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/50 mt-2">
-                         <div className="space-y-1">
-                            <Label htmlFor="lockLibrary" className="text-sm font-bold text-indigo-900 dark:text-indigo-300">Lock Library</Label>
-                            <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/60 leading-tight pr-4">
-                              Prevent reports from being removed from the library.
-                            </p>
-                         </div>
-                         <Switch 
-                           id="lockLibrary" 
-                           checked={isLibraryLocked} 
-                           onCheckedChange={setIsLibraryLocked} 
-                         />
-                      </div>
 
                       <div className="flex items-center justify-between p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/50 mt-1">
                          <div className="space-y-1">
@@ -1148,7 +1121,6 @@ export default function App() {
                   </div>
                 </DialogContent>
               </Dialog>
-            )}
           </div>
         </div>
 
@@ -1340,7 +1312,8 @@ export default function App() {
                                       removeReport={confirmDeleteReport}
                                       onUpdate={updateReport}
                                       searchQuery={searchQuery}
-                                      isLocked={isLibraryLocked || isAutoSortEnabled}
+                                      isAutoSortEnabled={isAutoSortEnabled}
+                                      isAdmin={isAdmin}
                                     />
                                   ))}
                                 </SortableContext>
@@ -1401,40 +1374,45 @@ export default function App() {
             </div>
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger render={
-                    <button className="flex items-center gap-2.5 bg-neutral-50 dark:bg-neutral-900 px-3 py-1.5 rounded-full border border-neutral-200/50 dark:border-neutral-800 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors border-none outline-none">
-                      <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">
-                        {currentUser?.displayName.charAt(0)}
-                      </div>
-                      <div className="flex flex-col text-left">
-                        <span className="text-[10px] font-bold text-neutral-900 dark:text-neutral-100 leading-none">{currentUser?.displayName}</span>
-                        <span className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest leading-none mt-1">{currentUser?.role}</span>
-                      </div>
-                    </button>
-                  } />
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuGroup>
-                      <DropdownMenuLabel>Switch User (Demo Mode)</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {allUsers.map(u => (
-                        <DropdownMenuItem 
-                          key={u.id} 
-                          onClick={() => setCurrentUser(u)}
-                          className={cn("flex flex-col items-start gap-1 p-3", currentUser?.id === u.id && "bg-indigo-50 dark:bg-indigo-900/20")}
-                        >
-                          <span className="font-bold text-xs">{u.displayName}</span>
-                          <span className="text-[9px] text-neutral-500 uppercase tracking-widest">{u.role}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-2.5 bg-neutral-50 dark:bg-neutral-900 px-3 py-1.5 rounded-full border border-neutral-200/50 dark:border-neutral-800">
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">
+                    {currentUser?.displayName.charAt(0)}
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-[10px] font-bold text-neutral-900 dark:text-neutral-100 leading-none">{currentUser?.displayName}</span>
+                    <span className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest leading-none mt-1">{currentUser?.role}</span>
+                  </div>
+                </div>
 
                 <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-2" />
                 
-                <LayoutGrid size={18} className="text-neutral-400" />
-                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-widest">Workspace</span>
+                <button 
+                  onClick={() => setIsDashboardOpen(!isDashboardOpen)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300",
+                    isDashboardOpen 
+                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none" 
+                      : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-indigo-600"
+                  )}
+                >
+                  <BarChart3 size={18} />
+                  <span className="text-xs font-bold uppercase tracking-widest">Dashboard</span>
+                </button>
+
+                <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
+
+                <button 
+                  onClick={() => setIsDashboardOpen(false)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300",
+                    !isDashboardOpen 
+                      ? "bg-neutral-100 dark:bg-neutral-800 text-indigo-600 dark:text-indigo-400 font-bold" 
+                      : "text-neutral-400 hover:text-indigo-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  )}
+                >
+                  <LayoutGrid size={18} />
+                  <span className="text-xs font-bold uppercase tracking-widest">Workspace</span>
+                </button>
                 
                 <Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>
                   <DialogTrigger render={
@@ -1539,7 +1517,16 @@ export default function App() {
 
           <ScrollArea className="flex-1">
             <div className="p-8 h-full min-h-[calc(100vh-64px)]">
-              {activeReportIds.length === 0 ? (
+              {isDashboardOpen ? (
+                <DashboardView 
+                  reports={reports} 
+                  onClose={() => setIsDashboardOpen(false)}
+                  onSelectEnvironment={(env) => {
+                    setSelectedEnv(env);
+                    setIsDashboardOpen(false);
+                  }}
+                />
+              ) : activeReportIds.length === 0 ? (
                 (isAdmin && allowUploads) ? (
                   <div className="h-full flex flex-col items-center justify-center text-center max-w-4xl mx-auto py-10 px-4 md:px-8">
                      <div 
@@ -1794,116 +1781,6 @@ export default function App() {
            </DialogContent>
         </Dialog>
 
-        {/* Permissions Management Dialog */}
-        <Dialog open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen}>
-           <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-neutral-950">
-              <DialogHeader className="p-6 bg-neutral-900 text-white shrink-0">
-                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center">
-                       <Shield size={20} />
-                    </div>
-                    <div>
-                       <DialogTitle className="text-xl font-bold">Permissions Management</DialogTitle>
-                       <DialogDescription className="text-neutral-400">Manage user roles and SSO group access</DialogDescription>
-                    </div>
-                 </div>
-              </DialogHeader>
-
-              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
-                 <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                       <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">Users in SSO Group</h3>
-                       <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-[10px] h-7 uppercase font-black" onClick={() => {
-                          const email = prompt('Enter user email:');
-                          if (email) {
-                             const newUser: User = {
-                                id: Math.random().toString(36).substr(2, 9),
-                                email,
-                                displayName: email.split('@')[0],
-                                role: 'Viewer'
-                             };
-                             const updated = [...allUsers, newUser];
-                             setAllUsers(updated);
-                             localStorage.setItem('livingdoc_users', JSON.stringify(updated));
-                          }
-                       }}>
-                          <Plus size={14} className="mr-1" /> Add User
-                       </Button>
-                    </div>
-
-                    <div className="border rounded-2xl overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
-                       {allUsers.map(user => (
-                          <div key={user.id} className="p-4 flex items-center justify-between group hover:bg-white dark:hover:bg-neutral-950 transition-colors">
-                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center text-xs font-bold text-neutral-600 dark:text-neutral-400">
-                                   {user.displayName.charAt(0)}
-                                </div>
-                                <div>
-                                   <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{user.displayName}</p>
-                                   <p className="text-xs text-neutral-500">{user.email}</p>
-                                </div>
-                             </div>
-
-                             <div className="flex items-center gap-2">
-                                <Select 
-                                   value={user.role} 
-                                   onValueChange={(newRole: UserRole) => {
-                                      const updated = allUsers.map(u => u.id === user.id ? { ...u, role: newRole } : u);
-                                      setAllUsers(updated);
-                                      localStorage.setItem('livingdoc_users', JSON.stringify(updated));
-                                      if (user.id === currentUser?.id) {
-                                         setCurrentUser({ ...user, role: newRole });
-                                      }
-                                   }}
-                                >
-                                   <SelectTrigger className="w-32 h-8 text-[11px] font-bold">
-                                      <SelectValue />
-                                   </SelectTrigger>
-                                   <SelectContent>
-                                      <SelectItem value="Administrator">Administrator</SelectItem>
-                                      <SelectItem value="Viewer">Viewer</SelectItem>
-                                   </SelectContent>
-                                </Select>
-
-                                {user.id !== currentUser?.id && (
-                                   <Button 
-                                      variant="ghost" 
-                                      size="icon-sm" 
-                                      className="text-neutral-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all border-none outline-none"
-                                      onClick={() => {
-                                         if (confirm(`Remove ${user.displayName} from permissions?`)) {
-                                            const updated = allUsers.filter(u => u.id !== user.id);
-                                            setAllUsers(updated);
-                                            localStorage.setItem('livingdoc_users', JSON.stringify(updated));
-                                         }
-                                      }}
-                                   >
-                                      <Trash2 size={14} />
-                                   </Button>
-                                )}
-                             </div>
-                          </div>
-                       ))}
-                    </div>
-
-                    <div className="bg-amber-50 dark:bg-amber-950/30 p-4 rounded-xl border border-amber-100 dark:border-amber-900/50 flex gap-3">
-                       <div className="text-amber-600 shrink-0">
-                          <Zap size={18} />
-                       </div>
-                       <p className="text-xs text-amber-800 dark:text-amber-400 leading-relaxed italic">
-                          <span className="font-bold">SSO Syncing:</span> This user list is currently managed locally for demonstration. In a production environment, this would sync with your corporate SSO groups (e.g., Azure AD or Okta).
-                       </p>
-                    </div>
-                 </div>
-              </div>
-
-              <DialogFooter className="p-4 border-t border-neutral-100 dark:border-neutral-800 shrink-0">
-                 <Button className="w-full bg-indigo-600 hover:bg-indigo-700" onClick={() => setIsPermissionsOpen(false)}>
-                    Close Management
-                 </Button>
-              </DialogFooter>
-           </DialogContent>
-        </Dialog>
       </div>
     </TooltipProvider>
   );
