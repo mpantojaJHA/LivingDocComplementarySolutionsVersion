@@ -36,6 +36,7 @@ export interface AppSettings {
   batchFolder: string;
   batchLicenseDomain: string;
   allowUploads: boolean;
+  isDeleteLocked: boolean;
   isAutoSortEnabled?: boolean;
   currentUser?: User;
 }

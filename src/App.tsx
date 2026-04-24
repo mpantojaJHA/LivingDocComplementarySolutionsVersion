@@ -158,12 +158,13 @@ interface SortableReportItemProps {
   removeReport: (id: string) => void;
   searchQuery: string;
   isAutoSortEnabled?: boolean;
+  isDeleteLocked?: boolean;
   isAdmin: boolean;
   onUpdate: (id: string, updates: Partial<LivingDocReport>) => void;
   key?: React.Key;
 }
 
-function SortableReportItem({ report, activeReportIds, toggleReportActive, removeReport, searchQuery, isAutoSortEnabled, isAdmin, onUpdate }: SortableReportItemProps) {
+function SortableReportItem({ report, activeReportIds, toggleReportActive, removeReport, searchQuery, isAutoSortEnabled, isDeleteLocked, isAdmin, onUpdate }: SortableReportItemProps) {
   const {
     attributes,
     listeners,
@@ -312,7 +313,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
                   </p>
                 )}
               </div>
-              {isAdmin && (
+              {isAdmin && !isDeleteLocked && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); removeReport(report.id); }}
                   className={cn(
@@ -406,7 +407,7 @@ function SortableReportItem({ report, activeReportIds, toggleReportActive, remov
               </ContextMenuItem>
             </ContextMenuSubContent>
           </ContextMenuSub>
-          {isAdmin && (
+          {isAdmin && !isDeleteLocked && (
             <>
               <ContextMenuSeparator />
               <ContextMenuItem 
@@ -579,6 +580,7 @@ export default function App() {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [selectedDomain, setSelectedDomain] = useState<string>('All');
   const [allowUploads, setAllowUploads] = useState<boolean>(true);
+  const [isDeleteLocked, setIsDeleteLocked] = useState<boolean>(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
@@ -615,6 +617,7 @@ export default function App() {
         setBatchFolder(settings.batchFolder);
         setBatchLicenseDomain(settings.batchLicenseDomain);
         setAllowUploads(settings.allowUploads ?? true);
+        setIsDeleteLocked(settings.isDeleteLocked ?? false);
         setIsAutoSortEnabled(settings.isAutoSortEnabled ?? false);
         
         // Auto-resolve user from SSO / Settings
@@ -673,10 +676,11 @@ export default function App() {
       batchFolder,
       batchLicenseDomain,
       allowUploads,
+      isDeleteLocked,
       isAutoSortEnabled,
       currentUser: currentUser || undefined
     });
-  }, [expandedFolders, selectedEnv, regressionReleaseName, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isInitialLoad, isAutoSortEnabled, currentUser]);
+  }, [expandedFolders, selectedEnv, regressionReleaseName, selectedDomain, batchEnv, batchVersion, batchFolder, batchLicenseDomain, allowUploads, isDeleteLocked, isInitialLoad, isAutoSortEnabled, currentUser]);
 
   // Sync reports to storage service (for metadata updates)
   useEffect(() => {
@@ -904,10 +908,12 @@ export default function App() {
   };
 
   const updateReport = useCallback((id: string, updates: Partial<LivingDocReport>) => {
+    if (!isAdmin) return;
     setReports(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
-  }, []);
+  }, [isAdmin]);
 
   const removeReport = (id: string) => {
+    if (!isAdmin || isDeleteLocked) return;
     setReports(prev => {
       const report = prev.find(r => r.id === id);
       if (report) URL.revokeObjectURL(report.url);
@@ -919,7 +925,7 @@ export default function App() {
   };
 
   const confirmDeleteReport = (id: string) => {
-    if (!isAdmin) return;
+    if (!isAdmin || isDeleteLocked) return;
     const report = reports.find(r => r.id === id);
     if (report) {
       setReportToDelete(report);
@@ -1108,13 +1114,32 @@ export default function App() {
                          <div className="space-y-1">
                             <Label htmlFor="allowUploads" className="text-sm font-bold text-emerald-900 dark:text-emerald-300">Upload Mode</Label>
                             <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/60 leading-tight pr-4">
-                              Enable or disable file dragging and the upload button in the workspace.
+                              Enable or disable file dragging and the upload button.
                             </p>
                          </div>
                          <Switch 
                            id="allowUploads" 
+                           disabled={!isAdmin}
                            checked={allowUploads} 
                            onCheckedChange={setAllowUploads} 
+                         />
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-rose-50/50 dark:bg-rose-950/20 rounded-xl border border-rose-100 dark:border-rose-900/50">
+                         <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                               <Label htmlFor="lockDelete" className="text-sm font-bold text-rose-900 dark:text-rose-300">Lock Deletion</Label>
+                               <Lock size={12} className="text-rose-400" />
+                            </div>
+                            <p className="text-[10px] text-rose-600/70 dark:text-rose-400/60 leading-tight pr-4">
+                              Prevent any reports from being deleted in the workspace.
+                            </p>
+                         </div>
+                         <Switch 
+                           id="lockDelete" 
+                           disabled={!isAdmin}
+                           checked={isDeleteLocked} 
+                           onCheckedChange={setIsDeleteLocked} 
                          />
                       </div>
                     </div>
@@ -1313,6 +1338,7 @@ export default function App() {
                                       onUpdate={updateReport}
                                       searchQuery={searchQuery}
                                       isAutoSortEnabled={isAutoSortEnabled}
+                                      isDeleteLocked={isDeleteLocked}
                                       isAdmin={isAdmin}
                                     />
                                   ))}
@@ -1373,53 +1399,54 @@ export default function App() {
               )}
             </div>
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2.5 bg-neutral-50 dark:bg-neutral-900 px-3 py-1.5 rounded-full border border-neutral-200/50 dark:border-neutral-800">
-                  <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">
-                    {currentUser?.displayName.charAt(0)}
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className="text-[10px] font-bold text-neutral-900 dark:text-neutral-100 leading-none">{currentUser?.displayName}</span>
-                    <span className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest leading-none mt-1">{currentUser?.role}</span>
-                  </div>
-                </div>
-
-                <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-2" />
-                
+              {/* Navigation Segmented Control */}
+              <div className="flex items-center bg-neutral-100/50 dark:bg-neutral-900/50 p-1 rounded-full border border-neutral-200/50 dark:border-neutral-800/50">
                 <button 
-                  onClick={() => setIsDashboardOpen(!isDashboardOpen)}
+                  onClick={() => setIsDashboardOpen(true)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300",
+                    "flex items-center gap-2 px-4 py-1.5 rounded-full transition-all duration-300 text-[10px] font-black uppercase tracking-widest",
                     isDashboardOpen 
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none" 
-                      : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-indigo-600"
+                      ? "bg-white dark:bg-neutral-800 text-indigo-600 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50" 
+                      : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                   )}
                 >
-                  <BarChart3 size={18} />
-                  <span className="text-xs font-bold uppercase tracking-widest">Dashboard</span>
+                  <BarChart3 size={14} />
+                  Dashboard
                 </button>
-
-                <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 mx-1" />
-
                 <button 
                   onClick={() => setIsDashboardOpen(false)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 rounded-full transition-all duration-300",
+                    "flex items-center gap-2 px-4 py-1.5 rounded-full transition-all duration-300 text-[10px] font-black uppercase tracking-widest",
                     !isDashboardOpen 
-                      ? "bg-neutral-100 dark:bg-neutral-800 text-indigo-600 dark:text-indigo-400 font-bold" 
-                      : "text-neutral-400 hover:text-indigo-600 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      ? "bg-white dark:bg-neutral-800 text-indigo-600 shadow-sm border border-neutral-200/50 dark:border-neutral-700/50" 
+                      : "text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
                   )}
                 >
-                  <LayoutGrid size={18} />
-                  <span className="text-xs font-bold uppercase tracking-widest">Workspace</span>
+                  <LayoutGrid size={14} />
+                  Workspace
                 </button>
-                
+              </div>
+
+              {/* Profile & Help */}
+              <div className="flex items-center gap-4 pl-6 border-l border-neutral-200 dark:border-neutral-800">
+                <div className="flex flex-col text-right">
+                  <span className="text-[10px] font-black text-neutral-900 dark:text-neutral-100 leading-none">{currentUser?.displayName}</span>
+                  <span className={cn(
+                    "text-[8px] font-bold uppercase tracking-widest leading-none mt-1",
+                    isAdmin ? "text-indigo-600" : "text-neutral-400"
+                  )}>{currentUser?.role}</span>
+                </div>
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white text-xs font-black shadow-lg shadow-indigo-200/50 dark:shadow-none">
+                  {currentUser?.displayName.charAt(0)}
+                </div>
+
                 <Dialog open={isHelpOpen} onOpenChange={setIsHelpOpen}>
                   <DialogTrigger render={
-                    <button className="ml-1 p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-indigo-600 transition-colors cursor-pointer border-none outline-none bg-transparent">
-                      <HelpCircle size={16} />
+                    <button className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400 hover:text-indigo-600 transition-all border border-transparent hover:border-neutral-200 dark:hover:border-neutral-700">
+                      <HelpCircle size={18} />
                     </button>
                   } />
+
                   <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0">
                     <DialogHeader className="p-8 bg-indigo-600 text-white shrink-0 space-y-2">
                       <DialogTitle className="text-3xl font-black italic serif">How can we help?</DialogTitle>
